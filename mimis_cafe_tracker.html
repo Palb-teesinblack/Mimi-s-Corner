@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mimi’s Corner Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; }
+    input, button, select { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
+    th { background: #f4f4f4; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 10px; }
+    .tab { padding: 10px; border: 1px solid #ccc; cursor: pointer; background: #eee; }
+    .tab.active { background: #ddd; font-weight: bold; }
+    .hidden { display: none; }
+    canvas { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+
+<h1>Mimi’s Corner Tracker</h1>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('sales')">Add Sale</div>
+  <div class="tab" onclick="switchTab('expenses')">Add Expense</div>
+</div>
+
+<div id="sales-tab">
+  <label>Date: <input type="date" id="sale-date"></label>
+  <label>Amount (INR): <input type="number" id="sale-amount" min="0"></label>
+  <label>Tax Rate (%): <input type="number" id="sale-tax" value="0" min="0"></label>
+  <button onclick="addSale()">Add Sale</button>
+</div>
+
+<div id="expenses-tab" class="hidden">
+  <label>Date: <input type="date" id="expense-date"></label>
+  <label>Amount (INR): <input type="number" id="expense-amount" min="0"></label>
+  <button onclick="addExpense()">Add Expense</button>
+</div>
+
+<h2>Summary</h2>
+<p><strong>Total Sales:</strong> ₹<span id="totalSales">0</span></p>
+<p><strong>Total Expenses:</strong> ₹<span id="totalExpenses">0</span></p>
+<p><strong>Total Profit:</strong> ₹<span id="totalProfit">0</span></p>
+<button onclick="exportToExcel()">Export to Excel</button>
+
+<canvas id="monthlyChart"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let sales = [], expenses = [];
+
+function switchTab(tab) {
+  document.getElementById('sales-tab').classList.add('hidden');
+  document.getElementById('expenses-tab').classList.add('hidden');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(tab + '-tab').classList.remove('hidden');
+  document.querySelector('.tab[onclick*="' + tab + '"]').classList.add('active');
+  updateSummary();
+  updateChart();
+}
+
+function addSale() {
+  const date = document.getElementById('sale-date').value;
+  const amount = parseFloat(document.getElementById('sale-amount').value);
+  const taxRate = parseFloat(document.getElementById('sale-tax').value);
+  if (!date || isNaN(amount)) return alert('Fill sale date and amount.');
+  sales.push({ date, amount, taxRate });
+  updateSummary(); updateChart();
+  document.getElementById('sale-date').value = '';
+  document.getElementById('sale-amount').value = '';
+}
+
+function addExpense() {
+  const date = document.getElementById('expense-date').value;
+  const amount = parseFloat(document.getElementById('expense-amount').value);
+  if (!date || isNaN(amount)) return alert('Fill expense date and amount.');
+  expenses.push({ date, amount });
+  updateSummary(); updateChart();
+  document.getElementById('expense-date').value = '';
+  document.getElementById('expense-amount').value = '';
+}
+
+function updateSummary() {
+  const totalSales = sales.reduce((a, b) => a + b.amount, 0);
+  const totalExpenses = expenses.reduce((a, b) => a + b.amount, 0);
+  const totalProfit = totalSales - totalExpenses;
+  document.getElementById('totalSales').innerText = totalSales.toFixed(2);
+  document.getElementById('totalExpenses').innerText = totalExpenses.toFixed(2);
+  document.getElementById('totalProfit').innerText = totalProfit.toFixed(2);
+}
+
+function groupByMonth(data) {
+  return data.reduce((acc, { date, amount }) => {
+    const [y, m] = date.split('-');
+    const key = `${y}-${m}`;
+    acc[key] = (acc[key] || 0) + amount;
+    return acc;
+  }, {});
+}
+
+function updateChart() {
+  const saleData = groupByMonth(sales);
+  const expenseData = groupByMonth(expenses);
+  const labels = [...new Set([...Object.keys(saleData), ...Object.keys(expenseData)])].sort();
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Sales',
+        data: labels.map(l => saleData[l] || 0),
+        backgroundColor: 'rgba(75, 192, 192, 0.5)'
+      },
+      {
+        label: 'Expenses',
+        data: labels.map(l => expenseData[l] || 0),
+        backgroundColor: 'rgba(255, 99, 132, 0.5)'
+      }
+    ]
+  };
+
+  if (window.barChart) window.barChart.destroy();
+  window.barChart = new Chart(document.getElementById('monthlyChart'), {
+    type: 'bar',
+    data: chartData,
+    options: { responsive: true, plugins: { legend: { position: 'top' } } }
+  });
+}
+
+function exportToExcel() {
+  let csv = 'Type,Date,Amount\n';
+  sales.forEach(s => csv += `Sale,${s.date},${s.amount}\n`);
+  expenses.forEach(e => csv += `Expense,${e.date},${e.amount}\n`);
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mimis_corner_report.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+</script>
+
+</body>
+</html>
